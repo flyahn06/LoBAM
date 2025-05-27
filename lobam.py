@@ -3,12 +3,13 @@ import matplotlib.pyplot as plt
 import sys
 
 # Hash table size
-TABLE_SIZE = 10000
+TABLE_SIZE = 50000
+THRESHOLD = (0.8594 * TABLE_SIZE - 302.2248)
 LOAD_FACTORS = np.linspace(0.1, 0.95, 10)  # Varying load factors
 NUM_KEYS = [int(TABLE_SIZE * load) for load in LOAD_FACTORS]
 
 # Hash table methods
-METHODS = ["Random Probing", "Elastic Hashing", "Funnel Hashing", "Bathroom Model"]
+METHODS = ["Random Probing", "Exponential Probing", "Logarithmic Probing", "Original Bathroom Model", "LOBAM"]
 
 # Results storage
 average_lookup_time = {method: [] for method in METHODS}
@@ -70,22 +71,43 @@ def bathroom_model(table, key):
     table[index] = key if table[index] is None else table[index]
     return probes
 
+def lobam(table, key, current_element_count):
+    """LOBAM: Load-resistent Hashmap based on the bathroom model"""
+    index = int(hash_function(key))
+    probes = 1  # Start with first probe attempt
+    step_size = 1  # Start with a small step
+    sub_table_size = TABLE_SIZE
+
+    while table[index] is not None and probes < MAX_PROBES:
+        if current_element_count > THRESHOLD:
+            index = (index + np.random.randint(1, TABLE_SIZE)) % TABLE_SIZE
+        else:
+            sub_table_size = max(2, sub_table_size // 2)  # Ensure sub_table_size is at least 2
+            index = (index + np.random.randint(1, sub_table_size)) % TABLE_SIZE
+        probes += 1
+    table[index] = key if table[index] is None else table[index]
+    return probes
+
 # Running experiments
 for num_keys in NUM_KEYS:
     for method in METHODS:
         table = [None] * TABLE_SIZE
         probes_list = []
         keys = np.random.randint(1, 10**6, num_keys).tolist()  # Convert to list for integer indexing
+        current_element_count = 0
         for key in keys:
             if method == "Random Probing":
                 probes_list.append(random_probing(table, key))
-            elif method == "Elastic Hashing":
+            elif method == "Exponential Probing":
                 probes_list.append(elastic_hashing(table, key))
-            elif method == "Funnel Hashing":
+            elif method == "Logarithmic Probing":
                 probes_list.append(funnel_hashing(table, key))
-            elif method == "Bathroom Model":
+            elif method == "Original Bathroom Model":
                 probes_list.append(bathroom_model(table, key))
-        
+            else:
+                probes_list.append(lobam(table, key, current_element_count))
+                current_element_count += 1
+
         average_lookup_time[method].append(np.mean(probes_list))
         worst_case_probes[method].append(np.max(probes_list))
         memory_utilization[method].append(get_memory_usage(table))  # Record memory usage
@@ -99,7 +121,6 @@ plt.ylabel("Average Lookup Time")
 plt.title("Comparison of Hash Table Lookup Efficiency")
 plt.legend()
 plt.grid()
-plt.show()
 
 plt.figure(figsize=(10, 5))
 for method in METHODS:
@@ -109,7 +130,6 @@ plt.ylabel("Worst-Case Probe Complexity")
 plt.title("Comparison of Worst-Case Probing")
 plt.legend()
 plt.grid()
-plt.show()
 
 plt.figure(figsize=(10, 5))
 for method in METHODS:
